@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AkshattBlogs</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+  <script src="https://www.gstatic.com/firebasejs/10.10.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.10.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.10.0/firebase-firestore-compat.js"></script>
+  <style>
+    body {
+      font-family: 'Inter', sans-serif;
+      background: #f2f4f8;
+      margin: 0;
+      padding: 0;
+      color: #333;
+    }
+    header {
+      background: linear-gradient(to right, #6366f1, #3b82f6);
+      color: white;
+      padding: 40px 20px;
+      text-align: center;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+    header h1 {
+      font-size: 3em;
+      margin: 0;
+    }
+    header p {
+      margin-top: 10px;
+      font-style: italic;
+      color: #e0e7ff;
+    }
+    .container {
+      max-width: 900px;
+      margin: auto;
+      padding: 40px 20px;
+    }
+    form, .auth {
+      background: white;
+      padding: 30px;
+      border-radius: 12px;
+      box-shadow: 0 6px 20px rgba(0,0,0,0.1);
+      margin-bottom: 40px;
+    }
+    input, textarea {
+      width: 100%;
+      padding: 15px;
+      margin: 15px 0;
+      border-radius: 8px;
+      border: 1px solid #ccc;
+      font-size: 1em;
+      transition: border 0.3s;
+    }
+    input:focus, textarea:focus {
+      border-color: #3b82f6;
+      outline: none;
+    }
+    button {
+      padding: 15px 25px;
+      background: #3b82f6;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 1em;
+      cursor: pointer;
+      transition: background 0.3s;
+    }
+    button:hover {
+      background: #2563eb;
+    }
+    .blog-post {
+      background: white;
+      margin: 30px 0;
+      padding: 30px;
+      border-radius: 12px;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+      transition: transform 0.3s, box-shadow 0.3s;
+    }
+    .blog-post:hover {
+      transform: translateY(-5px);
+      box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+    }
+    .blog-post h2 {
+      margin-top: 0;
+      color: #1e3a8a;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>AkshattBlogs</h1>
+    <p>Write and share your thoughts in style!</p>
+  </header>
+  <div class="container">
+    <div class="auth">
+      <input type="email" id="email" placeholder="Email">
+      <input type="password" id="password" placeholder="Password">
+      <button onclick="signUp()">Sign Up</button>
+      <button onclick="signIn()">Sign In</button>
+      <button onclick="signOut()">Sign Out</button>
+    </div>
+
+    <form id="blogForm" style="display:none;">
+      <input type="text" id="title" placeholder="Blog Title" required />
+      <textarea id="content" rows="6" placeholder="Your blog content..." required></textarea>
+      <button type="submit">Post Blog</button>
+    </form>
+
+    <div id="blogContainer"></div>
+  </div>
+  <script>
+    const firebaseConfig = {
+      apiKey: "YOUR_API_KEY",
+      authDomain: "YOUR_PROJECT.firebaseapp.com",
+      projectId: "YOUR_PROJECT_ID",
+      storageBucket: "YOUR_PROJECT.appspot.com",
+      messagingSenderId: "YOUR_SENDER_ID",
+      appId: "YOUR_APP_ID"
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    const auth = firebase.auth();
+    const db = firebase.firestore();
+
+    const blogForm = document.getElementById('blogForm');
+    const blogContainer = document.getElementById('blogContainer');
+
+    async function notifyAdmin(subject, message) {
+      const ipResponse = await fetch('https://api.ipify.org?format=json');
+      const ipData = await ipResponse.json();
+      const timestamp = new Date().toLocaleString();
+      const fullMessage = `${message}\nTimestamp: ${timestamp}\nIP Address: ${ipData.ip}`;
+
+      const webhookUrl = 'https://formsubmit.co/ajax/akshat4040qw@gmail.com';
+      await fetch(webhookUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+        body: JSON.stringify({
+          _subject: subject,
+          message: fullMessage
+        })
+      });
+    }
+
+    function signUp() {
+      const email = document.getElementById('email').value;
+      const password = document.getElementById('password').value;
+      auth.createUserWithEmailAndPassword(email, password)
+        .then(() => {
+          alert('Sign-up successful');
+          notifyAdmin("New Sign Up", `Email: ${email}`);
+        })
+        .catch(error => alert(error.message));
+    }
+
+    function signIn() {
+      const email = document.getElementById('email').value;
+      const password = document.getElementById('password').value;
+      auth.signInWithEmailAndPassword(email, password)
+        .then(() => {
+          alert('Signed in');
+          notifyAdmin("Sign In", `Email: ${email}`);
+        })
+        .catch(error => alert(error.message));
+    }
+
+    function signOut() {
+      auth.signOut().then(() => alert('Signed out'));
+    }
+
+    auth.onAuthStateChanged(user => {
+      blogForm.style.display = user ? 'block' : 'none';
+      if (user) loadBlogs();
+    });
+
+    blogForm.addEventListener('submit', async function(e) {
+      e.preventDefault();
+      const title = document.getElementById('title').value;
+      const content = document.getElementById('content').value;
+      const user = auth.currentUser;
+
+      await db.collection('blogs').add({
+        title,
+        content,
+        user: user.uid,
+        timestamp: firebase.firestore.FieldValue.serverTimestamp()
+      });
+
+      document.getElementById('title').value = '';
+      document.getElementById('content').value = '';
+      blogContainer.innerHTML = '';
+      loadBlogs();
+    });
+
+    async function loadBlogs() {
+      const user = auth.currentUser;
+      if (!user) return;
+      const snapshot = await db.collection('blogs').where('user', '==', user.uid).orderBy('timestamp', 'desc').get();
+      blogContainer.innerHTML = '';
+      snapshot.forEach(doc => {
+        const blog = doc.data();
+        const blogHTML = `
+          <div class="blog-post">
+            <h2>${blog.title}</h2>
+            <p>${blog.content.replace(/\n/g, '<br>')}</p>
+          </div>
+        `;
+        blogContainer.innerHTML += blogHTML;
+      });
+    }
+  </script>
+</body>
+</html>
